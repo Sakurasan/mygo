@@ -777,8 +777,26 @@ func (t *Tray) Destroy() {
 	})
 }
 
-// OnClick is called when the icon is clicked and it has no menu.
-func (t *Tray) OnClick(fn func()) (off func()) { return t.onClick.add(fn, false) }
+// OnClick is called when the icon is clicked and it has no menu. On Linux
+// it is the panel's activation as well: GNOME's AppIndicator extension
+// sends it for a double click, and opens the menu for a single one after
+// the double click time. While nothing listens the icon answers no
+// activation, so its menu still opens on the first click.
+func (t *Tray) OnClick(fn func()) func() {
+	t.activatable(true)
+	off := t.onClick.add(fn, false)
+	return func() {
+		off()
+		if t.onClick.len() == 0 {
+			t.activatable(false)
+		}
+	}
+}
+
+// activatable tells the native tray whether a click has anywhere to go.
+func (t *Tray) activatable(on bool) {
+	t.do(func(n platform.Tray) { n.SetActivatable(on) })
+}
 
 // OnRightClick is called when the icon is right-clicked.
 func (t *Tray) OnRightClick(fn func()) (off func()) { return t.onRight.add(fn, false) }

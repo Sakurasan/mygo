@@ -35,6 +35,7 @@ var (
 
 	cbMenuActivate   ptr
 	cbMenuDeactivate ptr
+	cbTrayActivate   ptr
 
 	// Menu bars that hide (window.menuHides), and the keys of items with a
 	// role.
@@ -155,6 +156,14 @@ func initMenuCallbacks() {
 	cbMenuBarDeactivate = purego.NewCallback(func(shell, data ptr) {
 		if w := theBackend.window(data); w != nil && w.menuHides() {
 			gtkWidgetHide(shell)
+		}
+	})
+	// A panel activates an icon it can tell a double click from: GNOME's
+	// AppIndicator extension sends AppIndicator::activate when its icon is
+	// double-clicked.
+	cbTrayActivate = purego.NewCallback(func(ind, x, y, data ptr) {
+		if t := theBackend.trays[int(data)]; t != nil && t.h != nil {
+			t.h.Clicked()
 		}
 	})
 }
@@ -453,15 +462,21 @@ func (b *Backend) PopupMenu(m *platform.Menu, pw platform.Window, pos *platform.
 }
 
 // Tray icons use AppIndicator (StatusNotifierItem), which shows a menu on
-// click; click events are not available.
+// a click. A panel can activate the icon, a double click on GNOME's
+// indicators, and the library reports that as the "activate" signal while
+// a handler is connected.
 type tray struct {
 	b       *Backend
+	h       platform.TrayHandler
 	id      int
 	ind     ptr
 	menu    ptr
 	owner   int
 	iconDir string
 	icons   int
+	// activate is the handler of the "activate" signal, 0 while the icon
+	// does not answer activation.
+	activate uint64
 }
 
 func (b *Backend) NewTray(h platform.TrayHandler) (platform.Tray, error) {
@@ -469,7 +484,7 @@ func (b *Backend) NewTray(h platform.TrayHandler) (platform.Tray, error) {
 		return nil, fmt.Errorf("mygo: tray icons need libayatana-appindicator3: %w", platform.ErrUnsupported)
 	}
 	b.nextTray++
-	t := &tray{b: b, id: b.nextTray}
+	t := &tray{b: b, h: h, id: b.nextTray}
 	name := fmt.Sprintf("mygo-%d-%d", os.Getpid(), t.id)
 	t.ind = appIndicatorNew(cs(name), cs("application-x-executable"), 0) // APPLICATION_STATUS
 	appIndicatorSetStatus(t.ind, 1)                                      // ACTIVE
@@ -529,10 +544,31 @@ func (t *tray) SetMenu(m *platform.Menu) {
 func (t *tray) PopUpMenu(*platform.Menu) {}
 func (t *tray) Bounds() platform.Rect    { return platform.Rect{} }
 
+// SetActivatable connects or drops the indicator's activate handler, which
+// is also the answer a panel gets when it asks the icon whether it can be
+// activated at all: the Activate method of the StatusNotifierItem
+// interface fails with UNKNOWN_METHOD while no handler is connected. GNOME's
+// AppIndicator extension then opens the menu on every click; with a
+// handler it opens the menu on a single click after waiting for a second
+// one, and the second click arrives here as TrayHandler.Clicked, as on
+// Telegram's icon.
+func (t *tray) SetActivatable(on bool) {
+	if t.ind == 0 || on == (t.activate != 0) {
+		return
+	}
+	if !on {
+		gSignalHandlerDisconnect(t.ind, t.activate)
+		t.activate = 0
+		return
+	}
+	t.activate = connect(t.ind, "activate", cbTrayActivate, ptr(t.id))
+}
+
 func (t *tray) Destroy() {
 	if t.ind == 0 {
 		return
 	}
+	t.SetActivatable(false)
 	appIndicatorSetStatus(t.ind, 0) // PASSIVE
 	gObjectUnref(t.ind)
 	t.ind = 0
