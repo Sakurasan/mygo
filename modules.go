@@ -783,19 +783,19 @@ func (t *Tray) Destroy() {
 // the double click time. While nothing listens the icon answers no
 // activation, so its menu still opens on the first click.
 func (t *Tray) OnClick(fn func()) func() {
-	t.activatable(true)
 	off := t.onClick.add(fn, false)
+	t.activatable()
 	return func() {
 		off()
-		if t.onClick.len() == 0 {
-			t.activatable(false)
-		}
+		t.activatable()
 	}
 }
 
-// activatable tells the native tray whether a click has anywhere to go.
-func (t *Tray) activatable(on bool) {
-	t.do(func(n platform.Tray) { n.SetActivatable(on) })
+// activatable tells the native tray whether a click has anywhere to go. It
+// reads the listeners on the main thread, so that the last call wins
+// whichever goroutines add and remove them.
+func (t *Tray) activatable() {
+	t.do(func(n platform.Tray) { n.SetActivatable(t.onClick.len() > 0) })
 }
 
 // OnRightClick is called when the icon is right-clicked.
