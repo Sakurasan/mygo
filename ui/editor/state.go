@@ -319,6 +319,27 @@ func (st *State) Unfold(line int) {
 	}
 }
 
+// FoldImports folds the first run of imports of the text, as editors
+// can on opening a file (Language's Imports).
+func (st *State) FoldImports() {
+	st.ensure()
+	ed := &st.ed
+	l := ed.language()
+	if l == nil || l.Imports == nil {
+		return
+	}
+	r := &ed.view.text
+	for line := range r.LineCount() {
+		if !l.Imports.MatchString(r.Line(line)) {
+			continue
+		}
+		if !ed.isFolded(line) {
+			ed.toggleFoldLine(line)
+		}
+		return
+	}
+}
+
 // Folded returns the lines folds start at.
 func (st *State) Folded() []int {
 	var out []int

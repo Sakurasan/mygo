@@ -21,6 +21,9 @@ func (ed *editor) foldEnd(line int) (int, bool) {
 	if line >= n-1 {
 		return 0, false
 	}
+	if end, ok := ed.importsEnd(line); ok {
+		return end, true
+	}
 	s := r.Line(line)
 	if strings.TrimSpace(s) == "" {
 		return 0, false
@@ -72,6 +75,9 @@ func (ed *editor) foldable(line int) bool {
 	if strings.TrimSpace(s) == "" {
 		return false
 	}
+	if _, ok := ed.importsEnd(line); ok {
+		return true
+	}
 	tab := ed.tabSize()
 	in := indentWidth(s, tab)
 	for i := line + 1; i < min(n, line+50); i++ {
@@ -82,6 +88,58 @@ func (ed *editor) foldable(line int) bool {
 		return indentWidth(t, tab) > in
 	}
 	return false
+}
+
+// importsEnd returns the last line of the run of imports line starts,
+// as VS Code folds them: the lines the language's Imports matches, the
+// lines in brackets of each, and the blank lines between; and whether
+// line starts a run of more than itself.
+func (ed *editor) importsEnd(line int) (int, bool) {
+	l := ed.language()
+	r := &ed.view.text
+	if l == nil || l.Imports == nil || !l.Imports.MatchString(r.Line(line)) {
+		return 0, false
+	}
+	// Not if an import is before it, ending on that line or before.
+	for p := line - 1; p >= 0; p-- {
+		s := r.Line(p)
+		t := strings.TrimLeft(s, " \t")
+		if t == "" {
+			continue
+		}
+		if l.Imports.MatchString(s) {
+			return 0, false
+		}
+		if open, _, ok := ed.matchBracket(r.LineStart(p) + len(s) - len(t)); ok && l.Imports.MatchString(r.Line(r.LineOf(open))) {
+			return 0, false
+		}
+		break
+	}
+	end := ed.importEnd(line)
+	for i := end + 1; i < r.LineCount(); i++ {
+		s := r.Line(i)
+		if strings.TrimSpace(s) == "" {
+			continue
+		}
+		if !l.Imports.MatchString(s) {
+			break
+		}
+		end = ed.importEnd(i)
+		i = end
+	}
+	return end, end > line
+}
+
+// importEnd returns the last line of the import at line: the line of the
+// bracket closing one that ends it, as Go's import (, or line.
+func (ed *editor) importEnd(line int) int {
+	r := &ed.view.text
+	if open, ok := ed.trailingOpener(line, r.Line(line)); ok {
+		if _, close, ok := ed.matchBracket(r.LineStart(line) + open); ok {
+			return r.LineOf(close)
+		}
+	}
+	return line
 }
 
 // trailingOpener returns the offset in s of an opening bracket ending it,
