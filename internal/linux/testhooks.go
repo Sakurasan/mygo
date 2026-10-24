@@ -459,6 +459,10 @@ func TestPinchSurface(handle uintptr, x, y, scale float64) bool {
 	return true
 }
 
+// TestTrayActivates tells whether the AppIndicator library can report
+// activation at all; call it after making a tray.
+func TestTrayActivates() bool { return trayActivates() }
+
 // TestActivateTray activates the tray icon made last, as a panel does when
 // its icon is double-clicked. It reports false when the icon answers no
 // activation: no click has anywhere to go.
@@ -472,8 +476,8 @@ func TestActivateTray() bool {
 	if last == nil || last.activate == 0 {
 		return false
 	}
-	var lookup func(name *byte, typ uint32) uint32
-	var typeFromName func(name *byte) uint32
+	var lookup func(name *byte, typ uintptr) uint32
+	var typeFromName func(name *byte) uintptr
 	var emit func(instance ptr, signal, detail uint32, x, y int32)
 	if !bind(libGObject, &lookup, "g_signal_lookup") ||
 		!bind(libGObject, &typeFromName, "g_type_from_name") ||

@@ -20,6 +20,11 @@ func TestTrayActivation(t *testing.T) {
 		t.Skip("no tray: ", err)
 	}
 	defer tray.Destroy()
+	var activates bool
+	mygo.RunOnMain(func() { activates = linux.TestTrayActivates() })
+	if !activates {
+		t.Skip("this libayatana-appindicator3 has no activate signal")
+	}
 
 	var activated bool
 	mygo.RunOnMain(func() { activated = linux.TestActivateTray() })

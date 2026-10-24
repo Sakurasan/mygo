@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -553,7 +554,7 @@ func (t *tray) Bounds() platform.Rect    { return platform.Rect{} }
 // one, and the second click arrives here as TrayHandler.Clicked, as on
 // Telegram's icon.
 func (t *tray) SetActivatable(on bool) {
-	if t.ind == 0 || on == (t.activate != 0) {
+	if t.ind == 0 || on == (t.activate != 0) || !trayActivates() {
 		return
 	}
 	if !on {
@@ -563,6 +564,20 @@ func (t *tray) SetActivatable(on bool) {
 	}
 	t.activate = connect(t.ind, "activate", cbTrayActivate, ptr(t.id))
 }
+
+// trayActivates tells whether the AppIndicator library has the
+// "activate" signal, which older libayatana-appindicator3 releases lack:
+// their icons answer no activation, whatever the app listens to. It is
+// asked once an indicator exists, which registers the type.
+var trayActivates = sync.OnceValue(func() bool {
+	var lookup func(name *byte, typ uintptr) uint32
+	var typeFromName func(name *byte) uintptr
+	if !bind(libGObject, &lookup, "g_signal_lookup") || !bind(libGObject, &typeFromName, "g_type_from_name") {
+		return false
+	}
+	typ := typeFromName(cs("AppIndicator"))
+	return typ != 0 && lookup(cs("activate"), typ) != 0
+})
 
 func (t *tray) Destroy() {
 	if t.ind == 0 {
