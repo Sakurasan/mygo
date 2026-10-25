@@ -39,7 +39,9 @@ type Glass struct {
 	// the content under them reading through: 0, the default, is
 	// macOS's material, as frosty as a control's; 0.5 blurs half as much
 	// and lightens (or darkens) less; 1 is nearly clear. Panes up to 100
-	// DIPs keep their material whatever it is; it takes effect from 200.
+	// DIPs keep their material whatever it is; it takes full effect from
+	// 200. On Clear glass, which barely tones already, it only lights the
+	// rim and curves the bezel.
 	Clarity float32
 }
 

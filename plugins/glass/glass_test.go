@@ -2,6 +2,7 @@ package glass
 
 import (
 	"image"
+	"math"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -214,5 +215,43 @@ func TestClarityPaints(t *testing.T) {
 func TestStringClarity(t *testing.T) {
 	if s := (Glass{Clarity: 0.5}).String(); s != "glass clarity(0.5)" {
 		t.Errorf("String: %q", s)
+	}
+}
+
+// At clarity 0 every pane, of any size and style, is exactly the
+// material it was before clarity: the measured one.
+func TestClarityZero(t *testing.T) {
+	for _, m := range []float32{1, 20, 72, 100, 150, 199, 200, 260, 900, 4000} {
+		for _, s := range []float32{1, 1.5, 2} {
+			bezel := min(36, m/2)
+			want := material{bezel: bezel * s, refraction: 1.6 * bezel * s, rim: 0.35, rimWidth: 1, light: math.Pi / 2}
+			for _, c := range []struct {
+				clear, dark                        bool
+				blur, low, high, curve, saturation float32
+			}{
+				{true, false, s, 0.125, 1.082, 1, 1},
+				{true, true, s, 0.125, 1.082, 1, 1},
+				{false, true, min(max(m*0.035, 1), 10) * s, 0.15, 0.51, 2, 2.2},
+				{false, false, min(max(m*0.035, 1), 10) * s, 0.541, 1, 1.2, 1},
+			} {
+				w := want
+				w.blur, w.low, w.high, w.curve, w.saturation = c.blur, c.low, c.high, c.curve, c.saturation
+				if got := paneMaterial(m, s, 0, c.clear, c.dark); got != w {
+					t.Errorf("%v DIPs at %vx, clear %v, dark %v: %+v, want %+v", m, s, c.clear, c.dark, got, w)
+				}
+			}
+		}
+	}
+}
+
+// On clear glass, clarity leaves the tone as it is and only lights the
+// rim and curves the bezel.
+func TestClarityClear(t *testing.T) {
+	frost, clear := paneMaterial(400, 1, 0, true, false), paneMaterial(400, 1, 1, true, false)
+	if frost.blur != clear.blur || frost.low != clear.low || frost.high != clear.high {
+		t.Errorf("tone: %+v and %+v", frost, clear)
+	}
+	if clear.rim != 0.5 || clear.bezel != 48 {
+		t.Errorf("rim and bezel: %+v", clear)
 	}
 }
