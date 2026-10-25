@@ -535,6 +535,7 @@ func (w *window) sized(kind uintptr) {
 			w.h.Minimized()
 		}
 	case sizeMaximized:
+		w.fitWorkArea()
 		if w.state != sizeMaximized {
 			if w.state == sizeMinimized {
 				w.h.Restored()
@@ -580,6 +581,39 @@ func (w *window) maximizeInWorkArea(pos *windowPos) {
 	mi := monitorInfo(mon)
 	if fit, ok := workAreaMaximized(r, mi.Monitor, mi.Work); ok {
 		pos.X, pos.Y, pos.CX, pos.CY = fit.Left, fit.Top, fit.Right-fit.Left, fit.Bottom-fit.Top
+	}
+}
+
+// fitWorkArea moves a maximized window without a maximize box into the
+// work area once it is maximized, where maximizeInWorkArea did not as it
+// was about to be: a window not yet zoomed as the move applied, or a
+// rectangle that did not cover the monitor. It overhangs the work area by
+// its invisible borders, the window's rectangle beyond what DWM shows.
+func (w *window) fitWorkArea() {
+	if w.fullScreen || w.hasStyle(wsMaximizeBox) {
+		return
+	}
+	var r, shown rect
+	procGetWindowRect.Call(w.hwnd, uintptr(unsafe.Pointer(&r)))
+	if procDwmGetWindowAttribute.Call(w.hwnd, dwmwaExtendedFrameBounds, uintptr(unsafe.Pointer(&shown)), unsafe.Sizeof(shown)); shown.Right <= shown.Left {
+		shown = r
+	}
+	mon, _, _ := procMonitorFromWindow.Call(w.hwnd, monitorDefaultToNearest)
+	if mon == 0 {
+		return
+	}
+	mi := monitorInfo(mon)
+	if mi.Work == mi.Monitor {
+		return
+	}
+	fit := rect{
+		Left:   mi.Work.Left - (shown.Left - r.Left),
+		Top:    mi.Work.Top - (shown.Top - r.Top),
+		Right:  mi.Work.Right + (r.Right - shown.Right),
+		Bottom: mi.Work.Bottom + (r.Bottom - shown.Bottom),
+	}
+	if fit != r {
+		procSetWindowPos.Call(w.hwnd, 0, uintptr(fit.Left), uintptr(fit.Top), uintptr(fit.Right-fit.Left), uintptr(fit.Bottom-fit.Top), swpNoZOrder|swpNoActivate)
 	}
 }
 
