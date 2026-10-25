@@ -354,7 +354,19 @@ func (w *window) focusWebView() {
 func (w *window) navigationStarting(_, args uintptr) {
 	var p uintptr
 	comCall(args, navStartingGetURI, uintptr(unsafe.Pointer(&p)))
-	uri := w.appURL(takeWstr(p))
+	raw := takeWstr(p)
+	if web := w.webURL(raw); web != raw {
+		// A URL of the app's schemes, as a popup's that WebView2 navigates
+		// itself (newWindowRequested): load it where the scheme is served.
+		comCall(args, navStartingPutCancel, 1)
+		w.b.post(func() {
+			if w.webview != 0 && !w.closed {
+				comCall(w.webview, wvNavigate, uintptr(unsafe.Pointer(u16(web))))
+			}
+		})
+		return
+	}
+	uri := w.appURL(raw)
 	var user int32
 	comCall(args, navStartingGetIsUserInitiated, uintptr(unsafe.Pointer(&user)))
 	kind := navigationKind(args)
@@ -577,6 +589,11 @@ func (w *window) newWindowRequested(_, args uintptr) {
 			return
 		}
 		done()
+		if raw := w.webURL(req.URL); raw != req.URL {
+			// WebView2 can't load the app's schemes: the popup loads the
+			// URL that serves it (navigationStarting cancels the other).
+			child.LoadURL(req.URL)
+		}
 	}, func(error) { done() }) // the child closed, or has no web view
 }
 
