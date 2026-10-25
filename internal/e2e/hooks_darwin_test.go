@@ -117,9 +117,9 @@ func material(w *mygo.Window) (class string, style int, radius float64, active b
 	return class, style, radius, active, true
 }
 
-func roundedBacking(w *mygo.Window) (opaque bool, alpha float64, supported bool) {
-	mygo.RunOnMain(func() { opaque, alpha = darwin.TestRoundedBacking(w.NativeHandle()) })
-	return opaque, alpha, true
+func roundedBacking(w *mygo.Window) (opaque bool, alpha, red float64, supported bool) {
+	mygo.RunOnMain(func() { opaque, alpha, red = darwin.TestRoundedBacking(w.NativeHandle()) })
+	return opaque, alpha, red, true
 }
 
 func dockDevTools(w *mygo.Window) (ok bool) {

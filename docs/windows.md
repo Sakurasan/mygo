@@ -171,6 +171,11 @@ Other properties:
 - `SetContentProtection(true)` keeps it out of screenshots and screen
   recordings.
 - `SetIgnoreMouseEvents(true)` lets clicks through to what is behind it.
+- `SetActiveAppearance(true)` keeps the window drawn as active while
+  another app is in front (macOS), so that the clear Liquid Glass
+  (`VibrancyGlassClear`) of a panel floating over it stays clear. It uses a
+  private AppKit call, which a later macOS may drop: apps for the Mac App
+  Store should leave it off.
 - `SetProgressBar` shows the progress of a task on the taskbar button
   (Windows), the Dock icon (macOS) or the launcher entry (Linux docks that
   support it):

@@ -757,7 +757,7 @@ func TestGlass(t *testing.T) {
 func TestRoundedOpaqueWindow(t *testing.T) {
 	w := newWindow(t, mygo.WindowOptions{Width: 300, Height: 200, Frameless: true, CornerRadius: 12, BackgroundColor: "#ff0000",
 		Content: ui.View(func(c *ui.Context) { c.Root().Background(ui.Transparent) })})
-	opaque, alpha, ok := roundedBacking(w)
+	opaque, alpha, _, ok := roundedBacking(w)
 	if !ok {
 		t.Skip("the corners are cut on macOS")
 	}
@@ -765,8 +765,37 @@ func TestRoundedOpaqueWindow(t *testing.T) {
 		t.Errorf("opaque %v, the content view's color's alpha %v, corners %v; want a clear window, its color on the content view, cut to 12", opaque, alpha, radius)
 	}
 	w.SetBackgroundColor("#00ff0080")
-	if opaque, alpha, _ := roundedBacking(w); opaque || alpha < .49 || alpha > .51 {
+	if opaque, alpha, _, _ := roundedBacking(w); opaque || alpha < .49 || alpha > .51 {
 		t.Errorf("after SetBackgroundColor: opaque %v, alpha %v; want a clear window, the new color on the content view", opaque, alpha)
+	}
+}
+
+// TestRoundedSystemBacking rounds a frameless window without a
+// BackgroundColor: its content view takes the system's window color, which
+// follows the appearance as the window's did, light and then dark (macOS).
+func TestRoundedSystemBacking(t *testing.T) {
+	mygo.Theme.SetSource(mygo.ThemeLight)
+	defer mygo.Theme.SetSource(mygo.ThemeSystem)
+	w := newWindow(t, mygo.WindowOptions{Width: 300, Height: 200, Frameless: true, CornerRadius: 12,
+		Content: ui.View(func(c *ui.Context) { c.Root().Background(ui.Transparent) })})
+	opaque, alpha, light, ok := roundedBacking(w)
+	if !ok {
+		t.Skip("the corners are cut on macOS")
+	}
+	if opaque || alpha != 1 || light < .5 {
+		t.Errorf("light: opaque %v, alpha %v, red %v; want a clear window, a light window color on the content view", opaque, alpha, light)
+	}
+	mygo.Theme.SetSource(mygo.ThemeDark)
+	eventually(t, "the window color turned dark", func() bool {
+		_, alpha, red, _ := roundedBacking(w)
+		return alpha == 1 && red < .5
+	})
+	// A color of the app's own stays, whatever the appearance.
+	w.SetBackgroundColor("#ff0000")
+	mygo.Theme.SetSource(mygo.ThemeLight)
+	eventually(t, "the app is light again", func() bool { return !mygo.Theme.IsDark() })
+	if _, alpha, red, _ := roundedBacking(w); alpha != 1 || red != 1 {
+		t.Errorf("after SetBackgroundColor and a light appearance: alpha %v, red %v; want the app's red", alpha, red)
 	}
 }
 

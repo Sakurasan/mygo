@@ -65,7 +65,11 @@ type window struct {
 	// radius is the corners the content view is cut to (Flyout.Radius,
 	// WindowOptions.CornerRadius), which the material follows.
 	radius int
-	parent *window
+	// systemBacking tells that the content view of a rounded window has
+	// the system's window color, which a layer cannot follow: it is
+	// resolved again when the appearance changes (fillSystemBacking).
+	systemBacking bool
+	parent        *window
 	// flyout is how a flyout (WindowOptions.Flyout) was placed last, at
 	// flyoutSize.
 	flyout     platform.Flyout
@@ -273,12 +277,42 @@ func (w *window) roundContent(radius int) {
 	send(layer, "setCornerCurve:", uintptr(nsString("continuous")))
 	send(layer, "setMasksToBounds:", 1)
 	if sendBool(w.win, "isOpaque") {
-		send(layer, "setBackgroundColor:", uintptr(send(send(w.win, "backgroundColor"), "CGColor")))
+		if w.opts.BackgroundColor == nil {
+			w.systemBacking = true
+			w.fillSystemBacking()
+		} else {
+			send(layer, "setBackgroundColor:", uintptr(send(send(w.win, "backgroundColor"), "CGColor")))
+		}
 		send(w.win, "setOpaque:", 0)
 		send(w.win, "setBackgroundColor:", uintptr(send(class("NSColor"), "clearColor")))
 	}
 	w.roundEffect()
 	send(w.win, "invalidateShadow")
+}
+
+// fillSystemBacking gives the content view of a rounded window without a
+// BackgroundColor the window color of the system, as the app's appearance
+// draws it. A layer's color is fixed once set, where the window's followed
+// the appearance: refreshSystemBackings sets it again when that changes.
+func (w *window) fillSystemBacking() {
+	withPool(func() {
+		appearance := class("NSAppearance")
+		prev := send(appearance, "currentAppearance")
+		send(appearance, "setCurrentAppearance:", uintptr(send(w.b.app, "effectiveAppearance")))
+		c := send(send(class("NSColor"), "windowBackgroundColor"), "CGColor")
+		send(send(w.view, "layer"), "setBackgroundColor:", uintptr(c))
+		send(appearance, "setCurrentAppearance:", uintptr(prev))
+	})
+}
+
+// refreshSystemBackings resolves the window color of rounded windows
+// anew, once the appearance or the system's colors changed.
+func (b *Backend) refreshSystemBackings() {
+	for _, w := range b.byNSWindow {
+		if w.systemBacking {
+			w.fillSystemBacking()
+		}
+	}
 }
 
 // roundEffect cuts the material to the content view's corners. The glass
@@ -880,6 +914,7 @@ func (w *window) SetBackgroundColor(c platform.Color) {
 			w.clipBackground(c)
 		case w.radius > 0:
 			// The window stays clear, its corners cut off (roundContent).
+			w.systemBacking = false
 			send(send(w.view, "layer"), "setBackgroundColor:", uintptr(send(nsColor(c), "CGColor")))
 		default:
 			send(w.win, "setBackgroundColor:", uintptr(nsColor(c)))
