@@ -231,3 +231,47 @@ func TestTextBackgrounds(t *testing.T) {
 	ct.st.Insert("é")
 	ct.tt.Frame()
 }
+
+// ScrollY, SetScrollY and LineTop place lines in DIPs, as the editor lays
+// them out, wrapped lines taking their rows.
+func TestScrollYAndLineTop(t *testing.T) {
+	var b strings.Builder
+	for i := range 100 {
+		if i == 3 {
+			b.WriteString(strings.Repeat("w", 150) + "\n")
+			continue
+		}
+		b.WriteString("func f() {\n")
+	}
+	ct := newEditorTest(t, "", b.String()+"|")
+	ct.st.SoftWrap = true
+	ct.tt.Frame()
+	ct.tt.Frame()
+	lh := float64(ct.st.ed.view.lineHeight)
+	if got := ct.st.LineTop(2); got != 2*lh {
+		t.Fatalf("line 2's top is %v, want %v", got, 2*lh)
+	}
+	// The wrapped line takes 3 rows.
+	if got := ct.st.LineTop(4) - ct.st.LineTop(3); got != 3*lh {
+		t.Fatalf("the wrapped line is %v high, want %v", got, 3*lh)
+	}
+	if got := ct.st.LineTop(101); got != 103*lh {
+		t.Fatalf("the lines are %v high, want %v", got, 103*lh)
+	}
+	ct.st.SetScrollY(10 * lh)
+	ct.tt.Frame()
+	if got := ct.st.ScrollY(); got != 10*lh {
+		t.Fatalf("scrolled to %v, want %v", got, 10*lh)
+	}
+	if first, _ := ct.st.VisibleLines(); first != 8 {
+		t.Fatalf("the first line shown is %d, want 8", first)
+	}
+	ct.st.SetScrollY(-5)
+	if ct.st.ScrollY() != 0 {
+		t.Fatal("scrolled above the top")
+	}
+	ct.st.SetScrollY(1e9)
+	if got, want := ct.st.ScrollY(), ct.st.LineTop(101)-lh; got != want {
+		t.Fatalf("scrolled to %v past the end, want %v", got, want)
+	}
+}

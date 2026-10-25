@@ -298,6 +298,27 @@ func (st *State) ScrollTo(line int) {
 	st.ed.setScroll(st.ed.view.heights.top(line))
 }
 
+// ScrollY returns how far the editor's lines are scrolled up, in DIPs, 0
+// for an editor as high as its lines (FitContent); SetScrollY scrolls
+// them, as far as they scroll, as editors side by side scroll together.
+func (st *State) ScrollY() float64 { return st.ed.scrollY }
+
+func (st *State) SetScrollY(y float64) {
+	st.ensure()
+	st.ed.setScroll(y)
+}
+
+// LineTop returns the top of a line, from 0, in DIPs below the top of the
+// first, as the last frame laid the lines out: less ScrollY, it is where
+// the line shows in the editor. The lines a fold hides take no room, and
+// LineTop of the count of lines is the height of them all. With SoftWrap,
+// the lines of a long text far from the view may take the rows they are
+// estimated to for a few frames, until they are measured.
+func (st *State) LineTop(line int) float64 {
+	st.ensure()
+	return st.ed.view.heights.top(line)
+}
+
 // Find opens the find bar with query, and selects its first match after
 // the caret.
 func (st *State) Find(query string) {

@@ -129,7 +129,11 @@ the find bar on a query and `FindMatches` counts its matches; `Fold`,
 `Unfold` and `Folded` fold lines, and `FoldImports` the first run of
 imports, as an editor can on opening a file; `Focused` reports whether the editor has
 the keyboard focus, and `VisibleLines` the first and last lines the last
-frame showed, as a half page of Vim's moves by.
+frame showed, as a half page of Vim's moves by. `ScrollY` and
+`SetScrollY` read and set how far the lines are scrolled, in DIPs, and
+`LineTop` where a line starts, below the first: editors side by side
+scroll together with them, and an app draws what joins their lines, as
+the bands between the panes of a merge.
 
 `OnInput` sees each input event before the editor does: keys, the text
 typed, edit commands and the pointer. Returning true takes the event, and
