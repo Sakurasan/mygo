@@ -62,6 +62,7 @@ var (
 	msgDrawImage     func(obj id, sel objc.SEL, dst, src NSRect, op uint, fraction float64)
 	msgInitBitmap    func(obj id, sel objc.SEL, planes uintptr, width, height, bitsPerSample, samplesPerPixel int, alpha, planar bool, colorSpace id, bytesPerRow, bitsPerPixel int) id
 	msgInitTextTab   func(obj id, sel objc.SEL, alignment uint, location float64, options id) id
+	msgInitMenuTrack func(obj id, sel objc.SEL, r NSRect, options uint, owner, info id) id
 
 	blockCopy    func(block uintptr) uintptr
 	blockRelease func(block uintptr)
@@ -134,6 +135,7 @@ func load() {
 		purego.RegisterFunc(&msgDrawImage, msgSendAddr)
 		purego.RegisterFunc(&msgInitBitmap, msgSendAddr)
 		purego.RegisterFunc(&msgInitTextTab, msgSendAddr)
+		purego.RegisterFunc(&msgInitMenuTrack, msgSendAddr)
 		purego.RegisterFunc(&msgSetRectBool, msgSendAddr)
 		purego.RegisterFunc(&msgFloat, msgSendAddr)
 		purego.RegisterFunc(&msgSetFloat, msgSendAddr)

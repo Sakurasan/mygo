@@ -95,7 +95,14 @@ type MenuItem struct {
 	// and draws them in a monospaced-digit font. Other platforms show it
 	// after the label.
 	Badge string
-	Type  MenuItemType
+	// KeepOpen keeps the menu open when the item is chosen (macOS): the
+	// item's menu and the menu above it stay up, so choosing a node or
+	// starting a test can show its state change without reopening the
+	// menus. macOS draws such an item itself, with its label, badge and
+	// check mark; items with a submenu, and menus elsewhere, are not
+	// affected.
+	KeepOpen bool
+	Type     MenuItemType
 	// Role gives the item a predefined behavior; Label and Accelerator
 	// default to the role's.
 	Role MenuRole
@@ -426,6 +433,7 @@ func (it *MenuItem) snapshotLocked() *platform.MenuItem {
 		ID:          it.uid,
 		Label:       it.Label,
 		Badge:       it.Badge,
+		KeepOpen:    it.KeepOpen,
 		Role:        string(it.Role),
 		Accelerator: it.Accelerator,
 		Enabled:     !it.Disabled,

@@ -754,6 +754,7 @@ type MenuItem struct {
 	Type        MenuItemType
 	Label       string
 	Badge       string
+	KeepOpen    bool
 	Role        string
 	Accelerator string
 	Enabled     bool
