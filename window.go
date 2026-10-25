@@ -1382,8 +1382,9 @@ func (e *EvalError) Error() string { return "mygo: javascript error: " + e.Messa
 // the default browser and everything else is denied.
 //
 // On macOS and Windows the new page keeps its relation to the opener
-// (window.opener). On Linux it opens as an independent page, because WebKitGTK would share
-// the opener's script message routing with a related page.
+// (window.opener). On Linux it opens as an independent page, because
+// WebKitGTK would share the opener's script message routing with a
+// related page.
 func (p *Page) SetWindowOpenHandler(fn func(req WindowOpenRequest) *WindowOptions) {
 	p.w.mu.Lock()
 	p.w.openHandler = fn
