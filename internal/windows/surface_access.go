@@ -399,6 +399,9 @@ func (s *surface) destroyAccess() {
 	}
 	t.root.disconnect()
 	t.nodes, t.order = nil, nil
+	// Elements COM still holds keep the tree: let go of what update kept.
+	t.spareNodes, t.spareOrder, t.prev, t.fresh, t.withAnnouncer, t.added, t.removed = nil, nil, nil, nil, nil, nil, nil
+	t.announcerTree = platform.AccessTree{}
 }
 
 // disconnect lets go of an element that left the tree.
@@ -414,6 +417,9 @@ func (e *uiaElement) disconnect() {
 // those of old no longer in now, appended to added and removed emptied.
 func childChanges(old, now, added, removed []*uiaElement) ([]*uiaElement, []*uiaElement) {
 	added, removed = added[:0], removed[:0]
+	if slices.Equal(old, now) {
+		return added, removed // as on most frames, without comparing each with all
+	}
 	for _, k := range old {
 		if !slices.Contains(now, k) {
 			removed = append(removed, k)
@@ -557,6 +563,10 @@ func (t *uiaTree) update(tree *platform.AccessTree) {
 	if e := t.nodes[announcerID]; e != nil && notify && len(tree.Announcements) > 0 {
 		procUiaRaiseAutomationEvent.Call(e.ptr(ifaceSimple), uiaLiveRegionChangedEvent)
 	}
+	// The elements hold copies of the nodes: let go of the content's
+	// strings and of its announcements, which it reuses.
+	t.withAnnouncer = clearSlice(t.withAnnouncer)
+	t.announcerTree = platform.AccessTree{}
 }
 
 // notifyChanges tells UI Automation's clients how an element changed since

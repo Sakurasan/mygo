@@ -79,6 +79,30 @@ func TestUIATreeUpdate(t *testing.T) {
 	}
 }
 
+// The nodes with the announcer are let go of once the elements have them,
+// as the strings of a tree that shrank would be kept past its length.
+func TestUIATreeAnnouncer(t *testing.T) {
+	tree := newTestTree(t, false)
+	frame := accessTree(2, 3, 4)
+	frame.Announcements = []string{"saved"}
+	tree.update(frame)
+	tree.update(accessTree(2))
+	if e := tree.nodes[announcerID]; e == nil || e.n.Label != "saved" {
+		t.Fatal("the announcer left the tree")
+	}
+	if got := ids(tree.root.children); !slices.Equal(got, []uint64{1, announcerID}) {
+		t.Fatalf("the root's children %v", got)
+	}
+	for _, n := range tree.withAnnouncer[:cap(tree.withAnnouncer)] {
+		if n.Label != "" {
+			t.Fatalf("the nodes with the announcer keep %q", n.Label)
+		}
+	}
+	if tree.announcerTree.Nodes != nil || tree.announcerTree.Announcements != nil {
+		t.Fatal("the tree with the announcer is kept")
+	}
+}
+
 func TestChildChanges(t *testing.T) {
 	e := func(id uint64) *uiaElement { return &uiaElement{n: platform.AccessNode{ID: id}} }
 	a, b, c, d := e(1), e(2), e(3), e(4)
