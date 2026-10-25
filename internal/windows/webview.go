@@ -354,19 +354,7 @@ func (w *window) focusWebView() {
 func (w *window) navigationStarting(_, args uintptr) {
 	var p uintptr
 	comCall(args, navStartingGetURI, uintptr(unsafe.Pointer(&p)))
-	raw := takeWstr(p)
-	if web := w.webURL(raw); web != raw {
-		// A URL of the app's schemes, as a popup's that WebView2 navigates
-		// itself (newWindowRequested): load it where the scheme is served.
-		comCall(args, navStartingPutCancel, 1)
-		w.b.post(func() {
-			if w.webview != 0 && !w.closed {
-				comCall(w.webview, wvNavigate, uintptr(unsafe.Pointer(u16(web))))
-			}
-		})
-		return
-	}
-	uri := w.appURL(raw)
+	uri := w.appURL(takeWstr(p))
 	var user int32
 	comCall(args, navStartingGetIsUserInitiated, uintptr(unsafe.Pointer(&user)))
 	kind := navigationKind(args)
@@ -416,6 +404,11 @@ func (w *window) navigationCompleted(_, args uintptr) {
 	var ok int32
 	comCall(args, navCompletedGetIsSuccess, uintptr(unsafe.Pointer(&ok)))
 	if ok != 0 {
+		if w.reloadAdopted {
+			w.reloadAdopted = false
+			comCall(w.webview, wvReload)
+			return
+		}
 		if zoomByScript && w.zoom != 1 {
 			putZoom(w, w.zoom) // a new document starts unzoomed
 		}
@@ -540,7 +533,8 @@ func (w *window) newWindowRequested(_, args uintptr) {
 	comCall(args, newWinPutHandled, 1)
 	var p uintptr
 	comCall(args, newWinGetURI, uintptr(unsafe.Pointer(&p)))
-	req := platform.NewWindowRequest{URL: w.appURL(takeWstr(p))}
+	raw := takeWstr(p)
+	req := platform.NewWindowRequest{URL: w.appURL(raw)}
 	var features uintptr
 	if comCall(args, newWinGetWindowFeatures, uintptr(unsafe.Pointer(&features))) == sOK && features != 0 {
 		var hasSize, hasPos int32
@@ -570,8 +564,12 @@ func (w *window) newWindowRequested(_, args uintptr) {
 	// for it (a deferral) and navigates it itself. It is handed over once
 	// set up, its scripts and handlers in place, and before it navigates;
 	// it shares the opener's environment, as every window does.
+	//
+	// WebView2 can't load a URL of the app's schemes, which window.open
+	// gives it as http://<scheme>.localhost/ (openScript), but a link
+	// still may: the child loads it as an independent page.
 	var deferral uintptr
-	if failed(comCall(args, newWinGetDeferral, uintptr(unsafe.Pointer(&deferral)))) || deferral == 0 {
+	if w.webURL(raw) != raw || failed(comCall(args, newWinGetDeferral, uintptr(unsafe.Pointer(&deferral)))) || deferral == 0 {
 		child.LoadURL(req.URL) // an independent page, as on Linux
 		return
 	}
@@ -589,11 +587,11 @@ func (w *window) newWindowRequested(_, args uintptr) {
 			return
 		}
 		done()
-		if raw := w.webURL(req.URL); raw != req.URL {
-			// WebView2 can't load the app's schemes: the popup loads the
-			// URL that serves it (navigationStarting cancels the other).
-			child.LoadURL(req.URL)
-		}
+		// WebView2 drops the chrome.webview messages the first document of
+		// an adopted popup posts once it loaded, so the bridge's calls get
+		// no reply; the popup's next document posts them all. A page of
+		// the app, which uses the bridge, loads again (navigationCompleted).
+		child.reloadAdopted = w.appURL(raw) != raw
 	}, func(error) { done() }) // the child closed, or has no web view
 }
 
@@ -731,6 +729,9 @@ func (w *window) addUserScripts() {
 	}
 	if w.hidingScript != "" {
 		scripts = append(scripts[:len(scripts):len(scripts)], platform.UserScript{Source: w.hidingScript, AllFrames: true})
+	}
+	if len(w.opts.Schemes) > 0 {
+		scripts = append(scripts[:len(scripts):len(scripts)], platform.UserScript{Source: w.openScript(), AllFrames: true})
 	}
 	gen := w.scriptGen
 	for _, us := range scripts {
@@ -1189,4 +1190,24 @@ func (r *schemeResponse) release() {
 	r.cancel()
 	release(r.deferral)
 	release(r.args)
+}
+
+// openScript makes window.open give WebView2 the URLs of the app's schemes
+// as the http://<scheme>.localhost/ URLs that serve them (webURL), which
+// the popup can load as it opens, keeping its opener (newWindowRequested).
+func (w *window) openScript() string {
+	schemes, _ := json.Marshal(w.opts.Schemes)
+	return `(() => {
+	const schemes = ` + string(schemes) + `, open = window.open;
+	if (typeof open !== "function") return;
+	window.open = function (url, ...rest) {
+		try {
+			const u = new URL(String(url), location.href), scheme = u.protocol.slice(0, -1);
+			if (u.hostname === "localhost" && !u.port && schemes.includes(scheme)) {
+				url = "http://" + scheme + ".localhost" + u.pathname + u.search + u.hash;
+			}
+		} catch {}
+		return open.call(this, url, ...rest);
+	};
+})();`
 }
