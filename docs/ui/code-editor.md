@@ -176,6 +176,13 @@ app.code.OnInput = func(ev ui.InputEvent) bool {
   keep their line numbers as the text is edited, unlike diagnostics and
   inlays, which move with it: compute them again when the buffer's
   `Version` changes.
+- `TextBackgrounds` fill ranges of the text, bytes `Start` to `End`, with
+  a color under the text and the selections and over line backgrounds, as
+  the words a merge changed within its lines. They follow the editor's
+  layout: the rows a line wraps into, tabs, wide characters and scrolling
+  sideways; lines a fold hides show none. As line backgrounds, they stay
+  where they are as the text is edited, cut to its end until computed
+  again when the buffer's `Version` changes.
 - `TabSize` and `Indent` set indentation: tabs or spaces, as the
   language's files usually have them when zero (Go's tabs).
 - `Whitespace` shows spaces and tabs as dots and arrows: within selections

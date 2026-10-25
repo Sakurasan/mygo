@@ -98,6 +98,13 @@ type State struct {
 	// the text is edited, unlike diagnostics and inlays, which move with
 	// it: compute them again when the buffer's Version changes.
 	LineBackgrounds []LineBackground
+	// TextBackgrounds fill ranges of the text with colors, under the
+	// text and over line backgrounds, as the words a merge changed:
+	// across wrapped rows, tabs and wide characters as the editor lays
+	// them out, not the lines folds hide. As LineBackgrounds, they stay
+	// where they are as the text is edited: compute them again when the
+	// buffer's Version changes.
+	TextBackgrounds []TextBackground
 	// OnInput sees each input event before the editor, as keys for a
 	// mode of the app's such as Vim's: returning true takes it, and the
 	// editor leaves it. Text typed at the carets comes as InputText;
@@ -189,6 +196,15 @@ type LineBackground struct {
 	Color       ui.Color
 }
 
+// TextBackground fills bytes Start to End of the text with Color. Ranges
+// past the end of the text, as an edit leaves them until they are
+// computed again, are cut to it; empty ones fill nothing. A range across
+// lines fills the text of each, not past its end.
+type TextBackground struct {
+	Start, End int
+	Color      ui.Color
+}
+
 func (st *State) options() options {
 	return options{
 		readOnly: st.ReadOnly, font: st.Font, lineHeight: st.LineHeight, tabSize: st.TabSize, indent: st.Indent,
@@ -196,7 +212,7 @@ func (st *State) options() options {
 		wrapGuides: st.WrapGuides, indentGuides: !st.NoIndentGuides, scrollPastEnd: !st.NoScrollPastEnd && !st.FitContent,
 		autoClose: !st.NoAutoClose, folding: !st.NoFolding, activeLine: !st.NoActiveLine, cursorShape: st.CursorShape, fitContent: st.FitContent,
 		placeholder: st.Placeholder, label: st.Label, theme: st.Theme, bindings: st.Bindings, gutterMarks: st.GutterMarks,
-		backgrounds: st.LineBackgrounds, diffBase: st.DiffBase, onCompletion: st.OnCompletion, onHover: st.OnHover, onDefinition: st.OnDefinition,
+		backgrounds: st.LineBackgrounds, textBgs: st.TextBackgrounds, diffBase: st.DiffBase, onCompletion: st.OnCompletion, onHover: st.OnHover, onDefinition: st.OnDefinition,
 		onGutterClick: st.OnGutterClick, contextMenu: st.ContextMenu, onInput: st.OnInput, noInputMethod: st.NoInputMethod, minDigits: 3,
 		renderFindBar: st.RenderFindBar, renderGoToLine: st.RenderGoToLine,
 		renderCompletions: st.RenderCompletions, renderHover: st.RenderHover,
