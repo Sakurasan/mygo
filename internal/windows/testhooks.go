@@ -687,3 +687,33 @@ func TestMaximizedRects(hwnd uintptr) (window, shown, client, monitor, work [4]i
 	four := func(r rect) [4]int32 { return [4]int32{r.Left, r.Top, r.Right, r.Bottom} }
 	return four(r), four(s), [4]int32{origin.X, origin.Y, origin.X + c.Right, origin.Y + c.Bottom}, four(mi.Monitor), four(mi.Work), z != 0
 }
+
+// TestHitTest reports what Windows' hit test answers at a point of a
+// window, in pixels from the top-left of its client area (negative from
+// the right or the bottom): the answer of the topmost visible window
+// there, the top edge above the webview or the surface, or the window
+// itself.
+func TestHitTest(hwnd uintptr, x, y int32) uintptr {
+	w := theBackend.windows[hwnd]
+	if w == nil {
+		return 0
+	}
+	var c rect
+	procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&c)))
+	if x < 0 {
+		x += c.Right
+	}
+	if y < 0 {
+		y += c.Bottom
+	}
+	const cwpSkipInvisible = 1
+	child, _, _ := user32.NewProc("ChildWindowFromPointEx").Call(hwnd, uintptr(uint32(x))|uintptr(uint32(y))<<32, cwpSkipInvisible)
+	if child == 0 {
+		child = hwnd
+	}
+	pt := point{x, y}
+	procClientToScreen.Call(hwnd, uintptr(unsafe.Pointer(&pt)))
+	lp := uintptr(uint16(int16(pt.Y)))<<16 | uintptr(uint16(int16(pt.X)))
+	hit, _, _ := procSendMessageW.Call(child, wmNCHitTest, 0, lp)
+	return hit
+}
