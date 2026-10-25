@@ -478,8 +478,9 @@ func (w *window) message(m uint32, wp, lp uintptr) (uintptr, bool) {
 		}
 		return 1, true
 	case wmWindowPosChanging:
+		pos := (*windowPos)(native(lp))
+		w.maximizeInWorkArea(pos)
 		if !w.movable {
-			pos := (*windowPos)(native(lp))
 			pos.Flags |= swpNoMove
 		}
 		return 0, false
@@ -551,6 +552,53 @@ func (w *window) sized(kind uintptr) {
 		w.state = sizeRestored
 	}
 	w.h.Resized()
+}
+
+// maximizeInWorkArea keeps a maximized window in the work area of its
+// monitor, off the taskbar, where Windows would have it cover the monitor.
+// Windows maximizes a top-level window into the work area only when it has
+// a maximize box (WS_MAXIMIZEBOX), and over the whole monitor otherwise
+// (Wine's WINPOS_GetMinMaxInfo spells the rule out): a window the user
+// cannot maximize (Maximizable false, and so every panel) that the app
+// maximizes anyway would cover the taskbar, and, topmost as panels are,
+// hide it. The rectangle is fixed as it is about to apply, in screen
+// coordinates, rather than in WM_GETMINMAXINFO, whose are given for the
+// primary monitor and adjusted by Windows for the others. Full screen
+// covers the monitor on purpose.
+func (w *window) maximizeInWorkArea(pos *windowPos) {
+	if w.fullScreen || pos.Flags&(swpNoMove|swpNoSize) != 0 || w.hasStyle(wsMaximizeBox) {
+		return
+	}
+	if zoomed, _, _ := procIsZoomed.Call(w.hwnd); zoomed == 0 {
+		return
+	}
+	r := rect{pos.X, pos.Y, pos.X + pos.CX, pos.Y + pos.CY}
+	mon, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&r)), monitorDefaultToNull)
+	if mon == 0 {
+		return
+	}
+	mi := monitorInfo(mon)
+	if fit, ok := workAreaMaximized(r, mi.Monitor, mi.Work); ok {
+		pos.X, pos.Y, pos.CX, pos.CY = fit.Left, fit.Top, fit.Right-fit.Left, fit.Bottom-fit.Top
+	}
+}
+
+// workAreaMaximized returns the rectangle of a window maximized in the
+// work area of a monitor, for one, r, maximized over the whole monitor:
+// it overhangs the work area as r overhangs the monitor, by the invisible
+// borders that a maximized window has outside the screen. ok is false
+// when r does not cover the monitor, or the work area is the whole
+// monitor (no taskbar, or one that hides).
+func workAreaMaximized(r, monitor, work rect) (fit rect, ok bool) {
+	if work == monitor || r.Left > monitor.Left || r.Top > monitor.Top || r.Right < monitor.Right || r.Bottom < monitor.Bottom {
+		return r, false
+	}
+	return rect{
+		Left:   work.Left - (monitor.Left - r.Left),
+		Top:    work.Top - (monitor.Top - r.Top),
+		Right:  work.Right + (r.Right - monitor.Right),
+		Bottom: work.Bottom + (r.Bottom - monitor.Bottom),
+	}, true
 }
 
 // captionless reports a window without a caption: frameless, or with a
