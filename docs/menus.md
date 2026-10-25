@@ -132,7 +132,10 @@ mygo.NewWindow(mygo.WindowOptions{URL: "/", AutoHideMenuBar: true})
 A Windows window without a title bar, frameless or with a hidden title
 bar, has no room for a menu bar either: Alt and F10 open its menus in a
 popup from the top-left corner, below the title bar the page draws. On
-Linux the bar shows above the page.
+Linux a window with a hidden title bar hides its menu bar as
+`AutoHideMenuBar` does, so that the window buttons stay at the top of the
+window, in the page's title bar; a frameless window shows the bar above
+the page.
 
 A window in full screen leaves the whole screen to the page: its menu bar
 hides until it leaves full screen. Alt and F10 still open its menus, in a
@@ -263,8 +266,11 @@ tray.OnClick(win.Show)
 ```
 
 On Linux tray icons use AppIndicator, which needs
-`libayatana-appindicator3`: they show a menu and report no clicks, and
-`NewTray` returns an error without the library.
+`libayatana-appindicator3`: they show a menu, and an icon with an `OnClick`
+listener answers activation (with a release of the library that has the
+`activate` signal; older ones report no clicks), which GNOME's AppIndicator extension sends on
+a double click and which opens the menu on a single one after the double
+click time. `NewTray` returns an error without the library.
 
 Apps that live in the menu bar usually drop their Dock icon on macOS:
 
