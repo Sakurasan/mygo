@@ -46,9 +46,10 @@ neither parsed nor laid out again.
 
 The end of a reply shows what its syntax will most likely become, as
 the chat apps show it, without changing its text: `**bol` is bold, an
-unclosed code span is code, `[the docs](https://ex` is a link whose
-destination is still coming (not clickable yet), and an open code fence
-shows as code. Lines that could still turn into something else wait for
+unclosed code span is code, `$$x_i` (and `$x_i` with `ExtDollarMath`)
+is math, whose `_` and `*` are TeX rather than emphasis,
+`[the docs](https://ex` is a link whose destination is still coming (not
+clickable yet), and an open code fence shows as code. Lines that could still turn into something else wait for
 what follows them: a line of a few markers, as `-` or `==`, which would
 make the paragraph above a heading, and a table's header, which waits
 for its delimiter row so that it does not flash as a paragraph of pipes.
