@@ -549,11 +549,35 @@ func (w *window) newWindowRequested(_, args uintptr) {
 		}
 		release(features)
 	}
-	// The new window loads the page itself, without a relation to its
-	// opener (as on Linux).
-	if child, ok := w.h.NewWindow(req).(*window); ok && child != nil {
-		child.LoadURL(req.URL)
+	child, ok := w.h.NewWindow(req).(*window)
+	if !ok || child == nil {
+		return // denied: window.open returns null
 	}
+	// The child's web view becomes the popup, keeping its relation to the
+	// opener (window.opener, postMessage), as on macOS: WebView2 waits
+	// for it (a deferral) and navigates it itself. It is handed over once
+	// set up, its scripts and handlers in place, and before it navigates;
+	// it shares the opener's environment, as every window does.
+	var deferral uintptr
+	if failed(comCall(args, newWinGetDeferral, uintptr(unsafe.Pointer(&deferral)))) || deferral == 0 {
+		child.LoadURL(req.URL) // an independent page, as on Linux
+		return
+	}
+	addRef(args)
+	done := func() {
+		comCall(deferral, deferralComplete)
+		release(deferral)
+		release(args)
+	}
+	child.withWebViewOr(func() {
+		if hr := comCall(args, newWinPutNewWindow, child.webview); failed(hr) {
+			log.Print(hresultError("adopting the new window's web view", hr))
+			done()
+			child.LoadURL(req.URL)
+			return
+		}
+		done()
+	}, func(error) { done() }) // the child closed, or has no web view
 }
 
 // Accelerator keys reach the webview, not the window: run the menu items
