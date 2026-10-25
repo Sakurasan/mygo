@@ -440,8 +440,10 @@ func TestCodeEditorFoldImports(t *testing.T) {
 		lang, text string
 		want       []fold
 	}{
-		// A block in brackets, to its closing line.
-		{"go", "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {}", []fold{{2, 5}}},
+		// A block in brackets alone folds by them, as before.
+		{"go", "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() {}", []fold{{2, 4}}},
+		// Several, to the closing line of the last.
+		{"go", "package main\n\nimport \"fmt\"\nimport (\n\t\"os\"\n)\n\nfunc main() {}", []fold{{2, 5}}},
 		// One import alone does not fold.
 		{"go", "package main\n\nimport \"fmt\"\n\nfunc main() {}", nil},
 		// A run of them, a long one in it, and blank lines between.
@@ -450,6 +452,9 @@ func TestCodeEditorFoldImports(t *testing.T) {
 		{"rust", "use std::io;\npub use crate::x;\n\nfn main() {}", []fold{{0, 1}}},
 		{"c", "#include <stdio.h>\n#include \"x.h\"\n\nint main() {}", []fold{{0, 1}}},
 		{"java", "package a;\n\nimport a.B;\nimport a.C;\n\nclass D {}", []fold{{2, 3}}},
+		// Not the lines of a docstring.
+		{"python", "\"\"\"\nfrom here on\nimport this\n\"\"\"\nimport os\nimport sys\n", []fold{{4, 5}}},
+		{"go", "// import a\n// import b\npackage main\n", nil},
 		// None in a language without imports.
 		{"markdown", "import a\nimport b\n", nil},
 	} {

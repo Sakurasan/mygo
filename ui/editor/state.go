@@ -303,8 +303,9 @@ func (st *State) FindMatches() (count, current int) {
 	return len(f.matches), f.current
 }
 
-// Fold folds the lines indented under line, or up to its closing
-// bracket, as the gutter's marker does; Unfold unfolds them.
+// Fold folds the lines indented under line, up to its closing bracket,
+// or the run of imports it starts, as the gutter's marker does; Unfold
+// unfolds them.
 func (st *State) Fold(line int) {
 	st.ensure()
 	if !st.ed.isFolded(line) {
@@ -319,8 +320,9 @@ func (st *State) Unfold(line int) {
 	}
 }
 
-// FoldImports folds the first run of imports of the text, as editors
-// can on opening a file (Language's Imports).
+// FoldImports folds the first run of imports of the text, or the first
+// import alone by its brackets, as editors can on opening a file
+// (Language's Imports).
 func (st *State) FoldImports() {
 	st.ensure()
 	ed := &st.ed
@@ -330,7 +332,7 @@ func (st *State) FoldImports() {
 	}
 	r := &ed.view.text
 	for line := range r.LineCount() {
-		if !l.Imports.MatchString(r.Line(line)) {
+		if !ed.isImport(l, line) {
 			continue
 		}
 		if !ed.isFolded(line) {
