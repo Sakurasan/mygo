@@ -955,6 +955,7 @@ func buildKeepOpenView(it *platform.MenuItem, metrics menuMetrics) id {
 			Size:   NSSize{Width: width - 8, Height: menuKeepOpenHeight - 2},
 		})
 		msgSetFloat(backdrop, sel("setCornerRadius:"), 4)
+		send(backdrop, "setAutoresizingMask:", 2) // kCALayerWidthSizable
 		send(backdrop, "setHidden:", 1)
 		send(layer, "addSublayer:", uintptr(backdrop))
 	}
@@ -983,7 +984,9 @@ func buildKeepOpenView(it *platform.MenuItem, metrics menuMetrics) id {
 	send(label, "setAlignment:", 0)
 	send(label, "setFont:", uintptr(menuFont()))
 	send(label, "setTag:", menuViewLabel)
-	send(label, "setAutoresizingMask:", 2) // NSViewWidthSizable
+	// Not width-sizable: the badge column sits to its right, and a wider
+	// menu must not run the label under it.
+	send(label, "setAutoresizingMask:", 0)
 	send(view, "addSubview:", uintptr(label))
 
 	badge := autorelease(msgInitRect(send(class("MyGoMenuBadge"), "alloc"), sel("initWithFrame:"), NSRect{}))
@@ -995,6 +998,7 @@ func buildKeepOpenView(it *platform.MenuItem, metrics menuMetrics) id {
 	send(badge, "setFont:", uintptr(menuBadgeFont()))
 	send(badge, "setTag:", menuViewBadge)
 	send(badge, "setRefusesFirstResponder:", 1)
+	send(badge, "setAutoresizingMask:", 1) // NSViewMinXMargin: keep to the right edge
 	send(badge, "setAccessibilityElement:", 0)
 	send(badge, "setWantsLayer:", 1)
 	if layer := send(badge, "layer"); layer != 0 {
@@ -1050,6 +1054,13 @@ func updateKeepOpenView(view id, it *platform.MenuItem, tab float64) {
 // layoutKeepOpenView places the label and badge of view in their columns
 // and makes room for width, the width the menu's views share.
 func layoutKeepOpenView(view id, label, badge string, start, badgeWidth, width, labelX float64, align platform.BadgeAlignment, style keepOpenBadgeStyle) {
+	// A menu can be wider than its widest KeepOpen row, as a long item NSMenu
+	// draws itself sets the width; AppKit then widens the view to fill it.
+	// Lay out to the view's own width when that is wider, so the backdrop,
+	// the label and the badge follow instead of stopping halfway.
+	if f := msgRect(view, sel("frame")); f.Size.Width > width {
+		width = f.Size.Width
+	}
 	if align == platform.BadgeAlignRight && badgeWidth > 0 {
 		// Anchor the column to the view's right edge rather than to the
 		// longest label: the room after the badge is then exactly
@@ -1093,7 +1104,7 @@ func layoutKeepOpenView(view id, label, badge string, start, badgeWidth, width, 
 		}
 	}
 	frame := msgRect(view, sel("frame"))
-	if frame.Size.Width != width {
+	if frame.Size.Width < width {
 		frame.Size.Width = width
 		msgSetRect(view, sel("setFrame:"), frame)
 	}

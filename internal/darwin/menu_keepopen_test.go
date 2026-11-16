@@ -417,3 +417,55 @@ func TestMenuKeepOpenBadgeRightInset(t *testing.T) {
 		}
 	})
 }
+
+// TestMenuKeepOpenViewFollowsMenuWidth checks a row whose item is wider than
+// the widest KeepOpen row: a long item NSMenu draws itself sets the menu's
+// width, AppKit widens the view to fill it, and the backdrop must cover the
+// row rather than stopping halfway, with the badge still at the right inset.
+func TestMenuKeepOpenViewFollowsMenuWidth(t *testing.T) {
+	load()
+	registerMenuTarget()
+	withPool(func() {
+		b := &Backend{}
+		items := []*platform.MenuItem{
+			{ID: 1, Label: "Node", Badge: "3 ms", KeepOpen: true,
+				BadgeShape: platform.BadgeShapeSquare, BadgeAlign: platform.BadgeAlignRight,
+				BadgeColor: &platform.Color{R: 52, G: 199, B: 89, A: 255},
+				Visible:    true, Enabled: true},
+			{ID: 2, Label: "A long item NSMenu draws itself, which makes the menu wider than its views",
+				Visible: true, Enabled: true},
+		}
+		menu := b.buildMenu(&platform.Menu{Items: items}, "", 1)
+		defer dropOwner(1)
+		native := send(menu, "itemAtIndex:", 0)
+		view := send(native, "view")
+		frame := msgRect(view, sel("frame"))
+		wider := frame.Size.Width + 60
+		frame.Size.Width = wider
+		msgSetRect(view, sel("setFrame:"), frame)
+
+		// An update while the menu is open recomputes the row: it must keep
+		// the frame AppKit gave it and lay the row out to that width.
+		updateKeepOpenView(view, items[0], 0)
+		retabKeepOpenMenu(native, "Node", "3 ms", platform.BadgeAlignRight)
+
+		if got := msgRect(view, sel("frame")).Size.Width; got < wider {
+			t.Errorf("view width = %v, want at least %v", got, wider)
+		}
+		backdrop := menuBackdrop(view)
+		if got := msgRect(backdrop, sel("frame")).Size.Width; got < wider-8 {
+			t.Errorf("backdrop width = %v, want %v", got, wider-8)
+		}
+		if got := int(send(backdrop, "autoresizingMask")); got&2 == 0 {
+			t.Errorf("backdrop autoresizing mask = %v, want width-sizable", got)
+		}
+		badge := send(view, "viewWithTag:", menuViewBadge)
+		bf := msgRect(badge, sel("frame"))
+		if got := wider - (bf.Origin.X + bf.Size.Width); got < menuKeepOpenRight-0.01 || got > menuKeepOpenRight+0.01 {
+			t.Errorf("room after badge = %v, want %v", got, menuKeepOpenRight)
+		}
+		if got := int(send(badge, "autoresizingMask")); got&1 == 0 {
+			t.Errorf("badge autoresizing mask = %v, want a flexible left margin", got)
+		}
+	})
+}
