@@ -379,3 +379,41 @@ func TestMenuKeepOpenBadgePillDefaultColor(t *testing.T) {
 		}
 	})
 }
+
+// TestMenuKeepOpenBadgeRightInset checks the room after a badge. The badges
+// end menuKeepOpenRight from the view's right edge and the menu's minimum
+// width carries no room beyond that: the earlier 40pt reserve showed as an
+// empty band after the delays and cost the menu that width.
+func TestMenuKeepOpenBadgeRightInset(t *testing.T) {
+	load()
+	registerMenuTarget()
+	withPool(func() {
+		b := &Backend{}
+		items := []*platform.MenuItem{
+			{ID: 1, Label: "A rather long node name here", Badge: "3 ms", KeepOpen: true,
+				BadgeShape: platform.BadgeShapeSquare, BadgeAlign: platform.BadgeAlignRight,
+				BadgeColor: &platform.Color{R: 52, G: 199, B: 89, A: 255},
+				Visible:    true, Enabled: true},
+			{ID: 2, Label: "Short", Badge: "1200 ms", KeepOpen: true,
+				BadgeShape: platform.BadgeShapeSquare, BadgeAlign: platform.BadgeAlignRight,
+				BadgeColor: &platform.Color{R: 255, G: 69, B: 58, A: 255},
+				Visible:    true, Enabled: true},
+		}
+		menu := b.buildMenu(&platform.Menu{Items: items}, "", 1)
+		defer dropOwner(1)
+		minWidth := msgFloat(menu, sel("minimumWidth"))
+		for i := range items {
+			view := send(send(menu, "itemAtIndex:", uintptr(i)), "view")
+			width := msgRect(view, sel("frame")).Size.Width
+			badge := send(view, "viewWithTag:", menuViewBadge)
+			frame := msgRect(badge, sel("frame"))
+			right := frame.Origin.X + frame.Size.Width
+			if got := width - right; got < menuKeepOpenRight-0.01 || got > menuKeepOpenRight+0.01 {
+				t.Errorf("item %d: room after badge = %v, want %v", i, got, menuKeepOpenRight)
+			}
+			if got := minWidth - right; got < menuKeepOpenRight-0.01 || got > menuKeepOpenRight+0.01 {
+				t.Errorf("item %d: menu width past the badge = %v, want %v", i, got, menuKeepOpenRight)
+			}
+		}
+	})
+}

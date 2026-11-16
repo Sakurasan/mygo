@@ -723,9 +723,8 @@ const (
 	menuKeepOpenIconSize   = 16
 	menuKeepOpenLabelX     = 26
 	menuKeepOpenIconLabelX = menuKeepOpenLabelX + 20
-	menuKeepOpenRight      = 10
+	menuKeepOpenRight      = 8
 	menuKeepOpenMinRoom    = 120
-	menuKeepOpenChrome     = 40
 	menuViewBackdrop       = 1
 	menuViewCheck          = 2
 	menuViewLabel          = 3
@@ -868,8 +867,17 @@ func keepOpenMetrics(m *platform.Menu) (start, badgeWidth, viewWidth, labelX flo
 	if hasBadge {
 		start = maxLabel + menuBadgeGap
 	}
-	viewWidth = max(labelX+menuKeepOpenMinRoom, labelX+start+maxBadge+menuKeepOpenRight) + menuKeepOpenChrome
+	viewWidth = keepOpenViewWidth(labelX, start, maxBadge)
 	return start, maxBadge, viewWidth, labelX
+}
+
+// keepOpenViewWidth is the width of the views of a menu's KeepOpen items:
+// the label column, the badge column, and the margin after the badges. The
+// menu sizes itself from it (setMinimumWidth), and it is what a badge is
+// anchored to from the right, so it carries no spare room beyond that
+// margin: ClashX Meta leaves 8pt after its delays and so does this.
+func keepOpenViewWidth(labelX, start, badgeWidth float64) float64 {
+	return max(labelX+menuKeepOpenMinRoom, labelX+start+badgeWidth+menuKeepOpenRight)
 }
 
 // retabKeepOpenMenu lays the views of the KeepOpen items of the menu that
@@ -922,7 +930,7 @@ func retabKeepOpenMenu(item id, label, badge string, align platform.BadgeAlignme
 	if hasBadge {
 		start = maxLabel + menuBadgeGap
 	}
-	width := max(labelX+menuKeepOpenMinRoom, labelX+start+maxBadge+menuKeepOpenRight) + menuKeepOpenChrome
+	width := keepOpenViewWidth(labelX, start, maxBadge)
 	msgSetFloat(menu, sel("setMinimumWidth:"), width)
 	for _, r := range rows {
 		layoutKeepOpenView(r.view, r.label, r.badge, start, maxBadge, width, labelX, r.align, r.style)
@@ -1042,6 +1050,13 @@ func updateKeepOpenView(view id, it *platform.MenuItem, tab float64) {
 // layoutKeepOpenView places the label and badge of view in their columns
 // and makes room for width, the width the menu's views share.
 func layoutKeepOpenView(view id, label, badge string, start, badgeWidth, width, labelX float64, align platform.BadgeAlignment, style keepOpenBadgeStyle) {
+	if align == platform.BadgeAlignRight && badgeWidth > 0 {
+		// Anchor the column to the view's right edge rather than to the
+		// longest label: the room after the badge is then exactly
+		// menuKeepOpenRight, and if the view turns out wider than measured
+		// the badge moves with the edge instead of leaving a gap.
+		start = max(start, width-menuKeepOpenRight-badgeWidth-labelX)
+	}
 	background := style.shape != "" && badge != ""
 	if field := send(view, "viewWithTag:", menuViewLabel); field != 0 {
 		fieldWidth := width - labelX - 4
