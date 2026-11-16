@@ -262,3 +262,55 @@ func TestMenuBadgeStyledTitle(t *testing.T) {
 		}
 	})
 }
+
+// TestMenuBadgeStyledUpdate checks that a system badge restyles and rewidens
+// in place, and loses its background when the style is cleared.
+func TestMenuBadgeStyledUpdate(t *testing.T) {
+	load()
+	withPool(func() {
+		b := &Backend{}
+		m := &platform.Menu{Items: []*platform.MenuItem{
+			{ID: 1, Label: "Node", Badge: "3 ms", Visible: true, Enabled: true,
+				BadgeShape: platform.BadgeShapeSquare,
+				BadgeColor: &platform.Color{R: 215, G: 245, B: 223, A: 255}},
+			{ID: 2, Label: "Other", Badge: "7 ms", Visible: true, Enabled: true},
+		}}
+		owner := newOwner()
+		menu := b.buildMenu(m, "", owner)
+		defer dropOwner(owner)
+		styled := send(menu, "itemAtIndex:", 0)
+		other := send(menu, "itemAtIndex:", 1)
+		before := titleTab(other)
+
+		// A wider badge moves the column and keeps its background.
+		b.UpdateMenuItem(&platform.MenuItem{ID: 1, Label: "Node", Badge: "1200 ms", Visible: true, Enabled: true,
+			BadgeShape:     platform.BadgeShapeSquare,
+			BadgeColor:     &platform.Color{R: 255, G: 224, B: 221, A: 255},
+			BadgeTextColor: &platform.Color{R: 163, G: 37, B: 26, A: 255}})
+		title := send(styled, "attributedTitle")
+		if !strings.Contains(goString(send(title, "string")), "\t"+menuBadgePad+"1200 ms"+menuBadgePad) {
+			t.Fatalf("styled title after update = %q", goString(send(title, "string")))
+		}
+		at := uintptr(len([]rune("Node\t")))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), at, 0) == 0 {
+			t.Error("background went away after a badge update")
+		}
+		if got := titleTab(other); got <= before {
+			t.Errorf("sibling tab = %v, want past %v", got, before)
+		}
+
+		// Clearing the shape and colors restores the plain title.
+		b.UpdateMenuItem(&platform.MenuItem{ID: 1, Label: "Node", Badge: "1 ms", Visible: true, Enabled: true})
+		title = send(styled, "attributedTitle")
+		if got := goString(send(title, "string")); got != "Node\t1 ms" {
+			t.Errorf("title after clearing = %q", got)
+		}
+		at = uintptr(len([]rune("Node\t")))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), at, 0) != 0 {
+			t.Error("background left after clearing the style")
+		}
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSColor")), at, 0) != 0 {
+			t.Error("text color left after clearing the style")
+		}
+	})
+}
