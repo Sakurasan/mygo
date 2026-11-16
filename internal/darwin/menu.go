@@ -872,10 +872,11 @@ func keepOpenMetrics(m *platform.Menu) (start, badgeWidth, viewWidth, labelX flo
 }
 
 // keepOpenViewWidth is the width of the views of a menu's KeepOpen items:
-// the label column, the badge column, and the margin after the badges. The
-// menu sizes itself from it (setMinimumWidth), and it is what a badge is
-// anchored to from the right, so it carries no spare room beyond that
-// margin: ClashX Meta leaves 8pt after its delays and so does this.
+// the label column, the badge column, and the space after the badges. The
+// menu sizes itself from it (setMinimumWidth) and the badges are anchored
+// to the view's right edge, so this space is all that separates a badge
+// from the row's end: 8pt is the room a menu row keeps at its trailing
+// edge, and the badge box carries its own padding on top of it.
 func keepOpenViewWidth(labelX, start, badgeWidth float64) float64 {
 	return max(labelX+menuKeepOpenMinRoom, labelX+start+badgeWidth+menuKeepOpenRight)
 }
@@ -1103,6 +1104,9 @@ func layoutKeepOpenView(view id, label, badge string, start, badgeWidth, width, 
 			send(field, "setHidden:", 1)
 		}
 	}
+	// Only grow: AppKit sizes the view to the menu when it opens. Shrinking
+	// it while the menu stays open would cut the backdrop and pull the
+	// badges in as latencies change; the next open computes a fresh width.
 	frame := msgRect(view, sel("frame"))
 	if frame.Size.Width < width {
 		frame.Size.Width = width
