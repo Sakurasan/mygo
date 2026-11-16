@@ -55,10 +55,11 @@ A `MenuItem` has:
   so a measure keeps its width as its digits change. The column moves when
   a label, a badge or the visibility of an item changes. `BadgeShape` draws
   a background behind the badge: `BadgeShapeSquare` on any macOS item, and
-  `BadgeShapeRounded` or `BadgeShapePill` on `KeepOpen` items. `BadgeColor`
-  (a CSS color) is the background and `BadgeTextColor` the text color,
-  with or without a background. Other platforms ignore it. Other platforms show the
-  badge after the label and subtitle;
+  `BadgeShapeRounded` or `BadgeShapePill` on `KeepOpen` items (other items
+  show a square for any shape). `BadgeColor` (a CSS color) is the
+  background and `BadgeTextColor` the text color, with or without a
+  background. Other platforms show the badge after the label and subtitle,
+  and ignore the shape and colors;
 - `KeepOpen`, which keeps the menu open when the item is chosen on macOS.
   MyGo draws the item itself, with its label, badge and check mark, in a
   view that handles the click: the item's menu and the menu above it stay

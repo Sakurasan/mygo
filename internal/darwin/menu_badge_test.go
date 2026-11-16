@@ -330,3 +330,66 @@ func TestMenuBadgeColumnIncludesPadding(t *testing.T) {
 		}
 	})
 }
+
+// TestMenuBadgeStyledTitleAstral checks that a badge after an astral
+// character keeps its attributes on the badge, not a UTF-16 unit early.
+func TestMenuBadgeStyledTitleAstral(t *testing.T) {
+	load()
+	withPool(func() {
+		m := &platform.Menu{Items: []*platform.MenuItem{{
+			ID: 1, Label: "🔥 Hot", Badge: "3 ms", Visible: true, Enabled: true,
+			BadgeShape:     platform.BadgeShapeSquare,
+			BadgeColor:     &platform.Color{R: 215, G: 245, B: 223, A: 255},
+			BadgeTextColor: &platform.Color{R: 11, G: 107, B: 46, A: 255},
+		}}}
+		owner := newOwner()
+		b := &Backend{}
+		menu := b.buildMenu(m, "", owner)
+		defer dropOwner(owner)
+		item := send(menu, "itemAtIndex:", 0)
+		title := send(item, "attributedTitle")
+		start := units([]rune("🔥 Hot\t"))
+		length := units([]rune(menuBadgePad + "3 ms" + menuBadgePad))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), uintptr(start), 0) == 0 {
+			t.Errorf("no background at UTF-16 index %d", start)
+		}
+		wrong := len([]rune("🔥 Hot\t"))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), uintptr(wrong), 0) != 0 {
+			t.Errorf("background at rune index %d, one unit early", wrong)
+		}
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), uintptr(start+length-1), 0) == 0 {
+			t.Error("background does not cover the badge")
+		}
+	})
+}
+
+// TestMenuBadgeTransparentBackgroundTextColor checks that a translucent
+// background does not force white text: the menu's own color is used.
+func TestMenuBadgeTransparentBackgroundTextColor(t *testing.T) {
+	load()
+	registerMenuTarget()
+	withPool(func() {
+		clear := &platform.Color{R: 0, G: 0, B: 0, A: 10}
+		b := &Backend{}
+		m := &platform.Menu{Items: []*platform.MenuItem{
+			{ID: 1, Label: "Node", Badge: "3 ms", Visible: true, Enabled: true,
+				BadgeShape: platform.BadgeShapeSquare, BadgeColor: clear},
+			{ID: 2, Label: "Other", Badge: "7 ms", Visible: true, Enabled: true, KeepOpen: true,
+				BadgeShape: platform.BadgeShapePill, BadgeColor: clear},
+		}}
+		owner := newOwner()
+		menu := b.buildMenu(m, "", owner)
+		defer dropOwner(owner)
+
+		title := send(send(menu, "itemAtIndex:", 0), "attributedTitle")
+		at := uintptr(len([]rune("Node\t")))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSColor")), at, 0) != 0 {
+			t.Error("translucent system background forced a text color")
+		}
+		badge := send(send(send(menu, "itemAtIndex:", 1), "view"), "viewWithTag:", menuViewBadge)
+		label := send(class("NSColor"), "labelColor")
+		if !sendBool(send(badge, "textColor"), "isEqual:", uintptr(label)) {
+			t.Error("translucent KeepOpen background did not use the label color")
+		}
+	})
+}

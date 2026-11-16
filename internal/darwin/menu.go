@@ -580,8 +580,8 @@ func menuTitleStyled(label, badge string, tab float64, align platform.BadgeAlign
 	}
 	title := autorelease(send(send(class("NSMutableAttributedString"), "alloc"), "initWithString:attributes:",
 		uintptr(nsString(label+"\t"+shown)), uintptr(attrs)))
-	start := len([]rune(label + "\t"))
-	length := len([]rune(shown))
+	start := units([]rune(label + "\t"))
+	length := units([]rune(shown))
 	if font := menuBadgeFont(); font != 0 {
 		send(title, "addAttribute:value:range:",
 			uintptr(nsString("NSFont")), uintptr(font), uintptr(start), uintptr(length))
@@ -607,7 +607,7 @@ func menuBadgeTextColor(st menuBadgeStyle) id {
 	if st.hasFG {
 		return nsColor(st.fg)
 	}
-	if st.shape != "" && st.hasBG {
+	if st.shape != "" && st.hasBG && st.bg.A >= 128 {
 		if keepOpenColorDark(st.bg) {
 			return send(class("NSColor"), "whiteColor")
 		}
@@ -1117,7 +1117,7 @@ func keepOpenBadgeTextColor(style keepOpenBadgeStyle) id {
 	if style.hasFG {
 		return nsColor(style.fg)
 	}
-	if style.hasBG {
+	if style.hasBG && style.bg.A >= 128 {
 		name := "blackColor"
 		if keepOpenColorDark(style.bg) {
 			name = "whiteColor"
