@@ -314,3 +314,19 @@ func TestMenuBadgeStyledUpdate(t *testing.T) {
 		}
 	})
 }
+
+// TestMenuBadgeColumnIncludesPadding checks that a background's padding is
+// part of the width the menu's badges share.
+func TestMenuBadgeColumnIncludesPadding(t *testing.T) {
+	load()
+	withPool(func() {
+		_, width := badgeColumn(&platform.Menu{Items: []*platform.MenuItem{
+			{Label: "Node", Badge: "1200 ms", Visible: true, BadgeShape: platform.BadgeShapeSquare},
+			{Label: "A longer node name", Badge: "7 ms", Visible: true},
+		}})
+		want := textWidth("1200 ms", menuBadgeFont()) + 2*textWidth(menuBadgePad, menuBadgeFont())
+		if width != want {
+			t.Errorf("column width = %v, want %v with padding", width, want)
+		}
+	})
+}
