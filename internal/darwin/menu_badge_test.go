@@ -4,6 +4,7 @@ package darwin
 
 import (
 	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/internal/platform"
@@ -201,4 +202,63 @@ func TestTextAlignments(t *testing.T) {
 			t.Errorf("%s: center %d, right %d, want %d, %d", c.arch, center, right, c.center, c.right)
 		}
 	}
+}
+
+// TestMenuBadgeStyledTitle checks the square background and text color of
+// a system-drawn badge, and that retabbing keeps them.
+func TestMenuBadgeStyledTitle(t *testing.T) {
+	load()
+	withPool(func() {
+		b := &Backend{}
+		m := &platform.Menu{Items: []*platform.MenuItem{
+			{ID: 1, Label: "Node", Badge: "120 ms", Visible: true, Enabled: true,
+				BadgeShape:     platform.BadgeShapeSquare,
+				BadgeColor:     &platform.Color{R: 215, G: 245, B: 223, A: 255},
+				BadgeTextColor: &platform.Color{R: 11, G: 107, B: 46, A: 255}},
+			{ID: 2, Label: "Other", Badge: "7 ms", Visible: true, Enabled: true,
+				BadgeTextColor: &platform.Color{R: 107, G: 82, B: 0, A: 255}},
+		}}
+		owner := newOwner()
+		menu := b.buildMenu(m, "", owner)
+		defer dropOwner(owner)
+
+		item := send(menu, "itemAtIndex:", 0)
+		title := send(item, "attributedTitle")
+		if title == 0 || !strings.Contains(goString(send(title, "string")), "\t"+menuBadgePad+"120 ms"+menuBadgePad) {
+			t.Fatalf("styled title = %q", goString(send(title, "string")))
+		}
+		at := uintptr(len([]rune("Node\t")))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), at, 0) == 0 {
+			t.Error("styled badge has no background")
+		}
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSColor")), at, 0) == 0 {
+			t.Error("styled badge has no text color")
+		}
+		if label, badge, _ := itemTitleParts(item); label != "Node" || badge != "120 ms" {
+			t.Errorf("parsed title = %q, %q", label, badge)
+		}
+
+		// A text color alone colors the badge without a background.
+		other := send(menu, "itemAtIndex:", 1)
+		otherTitle := send(other, "attributedTitle")
+		if !strings.Contains(goString(send(otherTitle, "string")), "\t7 ms") {
+			t.Errorf("text-only title = %q", goString(send(otherTitle, "string")))
+		}
+		at = uintptr(len([]rune("Other\t")))
+		if send(otherTitle, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSColor")), at, 0) == 0 {
+			t.Error("text-only badge has no text color")
+		}
+		if send(otherTitle, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), at, 0) != 0 {
+			t.Error("text-only badge has a background")
+		}
+
+		// Retabbing from another item keeps the styled badge.
+		b.UpdateMenuItem(&platform.MenuItem{ID: 2, Label: "A wider label", Badge: "7 ms",
+			Visible: true, Enabled: true, BadgeTextColor: &platform.Color{R: 107, G: 82, B: 0, A: 255}})
+		title = send(item, "attributedTitle")
+		at = uintptr(len([]rune("Node\t")))
+		if send(title, "attribute:atIndex:effectiveRange:", uintptr(nsString("NSBackgroundColor")), at, 0) == 0 {
+			t.Error("background went away after retabbing")
+		}
+	})
 }
